@@ -14,180 +14,122 @@ resource "aws_vpc" "Network" {
     Context = "TP_VPC"
   }
 }
-
 ############# PUBLIC SUBNET #############
-resource "aws_subnet" "PublicA" {
+resource "aws_subnet" "Public" {
+  count      = "${length(var.availability_zones)}"
   vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.0.0/24"
-  availability_zone = "eu-west-3a"
+  cidr_block = "${cidrsubnet(var.cidr_block, 8, count.index)}"
+  availability_zone = "${element(var.availability_zones, count.index)}"
 
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "PublicA"
+    Name = "Public subnet - ${element(var.availability_zones, count.index)}"
     Context = "TP_VPC"
   }
 }
-resource "aws_subnet" "PublicB" {
+############## APP SUBNET #############
+resource "aws_subnet" "Application" {
+  count      = "${length(var.availability_zones)}"
   vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.1.0/24"
-  availability_zone = "eu-west-3b"
+  cidr_block = "${cidrsubnet(var.cidr_block, 8, count.index + 10)}"
+  availability_zone = "${element(var.availability_zones, count.index)}"
 
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
 
   tags = {
-    Name = "PublicB"
+    Name = "Application subnet - ${element(var.availability_zones, count.index)}"
     Context = "TP_VPC"
   }
 }
-resource "aws_subnet" "PublicC" {
+############## BDD SUBNET #############
+resource "aws_subnet" "Database" {
+  count      = "${length(var.availability_zones)}"
   vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.2.0/24"
-  availability_zone = "eu-west-3c"
+  cidr_block = "${cidrsubnet(var.cidr_block, 8, count.index + 20)}"
+  availability_zone = "${element(var.availability_zones, count.index)}"
 
-  map_public_ip_on_launch = true
-
-  tags = {
-    Name = "PublicC"
-    Context = "TP_VPC"
-  }
-}
-
-############# APP SUBNET #############
-resource "aws_subnet" "PrivateA" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.10.0/24"
-  availability_zone = "eu-west-3a"
-  tags = {
-    Name = "PrivateA"
-    Context = "TP_VPC"
-  }
-}
-resource "aws_subnet" "PrivateB" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.11.0/24"
-  availability_zone = "eu-west-3b"
-
+  map_public_ip_on_launch = false
 
   tags = {
-    Name = "PrivateB"
-    Context = "TP_VPC"
-  }
-}
-resource "aws_subnet" "PrivateC" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.12.0/24"
-  availability_zone = "eu-west-3c"
-
-  tags = {
-    Name = "PrivateC"
-    Context = "TP_VPC"
-  }
-}
-
-############# DATABASE SUBNET #############
-resource "aws_subnet" "DBA" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.20.0/24"
-  availability_zone = "eu-west-3a"
-  tags = {
-    Name = "DB_A"
-    Context = "TP_VPC"
-  }
-}
-resource "aws_subnet" "DBB" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.21.0/24"
-  availability_zone = "eu-west-3b"
-
-
-  tags = {
-    Name = "DB_B"
-    Context = "TP_VPC"
-  }
-}
-resource "aws_subnet" "DBC" {
-  vpc_id     = "${aws_vpc.Network.id}"
-  cidr_block = "10.0.22.0/24"
-  availability_zone = "eu-west-3c"
-
-  tags = {
-    Name = "DB_C"
+    Name = "Database subnet - ${element(var.availability_zones, count.index)}"
     Context = "TP_VPC"
   }
 }
 
 
-
-resource "aws_internet_gateway" "Network-GW" {
-  vpc_id = "${aws_vpc.Network.id}"
-
-  tags = {
-    Name = "labVPCIGW"
-    Context = "TP_VPC"
-  }
-}
-
-resource "aws_route_table" "route" {
-  vpc_id = "${aws_vpc.Network.id}"
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = "${aws_internet_gateway.Network-GW.id}"
-  }
-
-  tags = {
-    Name = "publicRT"
-    Context = "TP_VPC"
-  }
-}
-
-resource "aws_route_table_association" "route_pubA" {
-  subnet_id      = "${aws_subnet.PublicA.id}"
-  route_table_id = "${aws_route_table.route.id}"
-}
-
-resource "aws_route_table_association" "route_pubB" {
-  subnet_id      = "${aws_subnet.PublicB.id}"
-  route_table_id = "${aws_route_table.route.id}"
-}
-
-resource "aws_route_table_association" "route_pubC" {
-  subnet_id      = "${aws_subnet.PublicC.id}"
-  route_table_id = "${aws_route_table.route.id}"
-}
-
-resource "aws_security_group" "allow_ssh" {
-  name        = "allow_ssh"
-  description = "Allow SSH inbound traffic"
-  vpc_id      = "${aws_vpc.Network.id}"
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-}
-
-  egress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = "-1"
-    cidr_blocks     = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_instance" "bastion" {
-  ami           = "ami-007fae589fdf6e955"
-  instance_type = "t2.micro"
-  subnet_id = "${aws_subnet.PublicB.id}"
-  vpc_security_group_ids = ["${aws_security_group.allow_ssh.id}"]
-  key_name = "${var.key}"
-  tags = {
-    Name = "Bastion"
-    Context = "tf-network"
-  }
-}
+#
+#
+#
+#resource "aws_internet_gateway" "Network-GW" {
+#  vpc_id = "${aws_vpc.Network.id}"
+#
+#  tags = {
+#    Name = "labVPCIGW"
+#    Context = "TP_VPC"
+#  }
+#}
+#
+#resource "aws_route_table" "route" {
+#  vpc_id = "${aws_vpc.Network.id}"
+#
+#  route {
+#    cidr_block = "0.0.0.0/0"
+#    gateway_id = "${aws_internet_gateway.Network-GW.id}"
+#  }
+#
+#  tags = {
+#    Name = "publicRT"
+#    Context = "TP_VPC"
+#  }
+#}
+#
+#resource "aws_route_table_association" "route_pubA" {
+#  subnet_id      = "${aws_subnet.PublicA.id}"
+#  route_table_id = "${aws_route_table.route.id}"
+#}
+#
+#resource "aws_route_table_association" "route_pubB" {
+#  subnet_id      = "${aws_subnet.PublicB.id}"
+#  route_table_id = "${aws_route_table.route.id}"
+#}
+#
+#resource "aws_route_table_association" "route_pubC" {
+#  subnet_id      = "${aws_subnet.PublicC.id}"
+#  route_table_id = "${aws_route_table.route.id}"
+#}
+#
+#resource "aws_security_group" "allow_ssh" {
+#  name        = "allow_ssh"
+#  description = "Allow SSH inbound traffic"
+#  vpc_id      = "${aws_vpc.Network.id}"
+#
+#  ingress {
+#    from_port   = 22
+#    to_port     = 22
+#    protocol    = "tcp"
+#    cidr_blocks = ["0.0.0.0/0"]
+#}
+#
+#  egress {
+#    from_port       = 0
+#    to_port         = 0
+#    protocol        = "-1"
+#    cidr_blocks     = ["0.0.0.0/0"]
+#  }
+#}
+#
+#resource "aws_instance" "bastion" {
+#  ami           = "ami-007fae589fdf6e955"
+#  instance_type = "t2.micro"
+#  subnet_id = "${aws_subnet.PublicB.id}"
+#  vpc_security_group_ids = ["${aws_security_group.allow_ssh.id}"]
+#  key_name = "${var.key}"
+#  tags = {
+#    Name = "Bastion"
+#    Context = "tf-network"
+#  }
+#}
 #
 #resource "aws_network_interface" "web_net_int" {
 #  subnet_id   = "${aws_subnet.Public.id}"
