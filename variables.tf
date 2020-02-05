@@ -12,5 +12,8 @@ variable "availability_zones" {
   type = "list"
   default = ["eu-west-3a", "eu-west-3b", "eu-west-3c"]
 }
-
+variable "environnement" {
+  type    = "string"
+  default = "Dev"
+}
 
